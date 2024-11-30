@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OWASP Risk Calculator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+            background-color: #e5eae3; /* Light pista color */
+            position: relative;
+        }
+
+        h1 {
+            font-size: 24px;
+            color: #333;
+        }
+
+        #gauge-container {
+            position: relative;
+            width: 300px;
+            height: 150px;
+            margin: 20px auto;
+        }
+
+        #gauge {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 150px;
+            border-radius: 150px 150px 0 0;
+            border: 10px solid lightgray;
+            background: linear-gradient(to right, green 0%, yellow 50%, red 100%);
+        }
+
+        #needle {
+            position: absolute;
+            bottom: 10px; /* Attach needle to bottom center */
+            left: 50%;
+            width: 2px;
+            height: 120px; /* Increased length of the needle */
+            background-color: black;
+            transform-origin: bottom; /* The rotation point is the bottom */
+            transform: rotate(0deg); /* Initially set to 0 degrees */
+        }
+
+        #risk-output {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        #inputs {
+            margin-top: 20px;
+            font-size: 18px;
+        }
+
+        #inputs input {
+            font-size: 16px;
+            padding: 5px;
+            margin: 10px 0;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #cce6c2;
+            color: rgb(0, 0, 0);
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: #e5eae3;
+        }
+
+        #suggestions {
+            margin-top: 20px;
+            font-size: 16px;
+            color: #555;
+        }
+
+        /* Login button styles */
+        #login-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #cce6c2;
+            color: rgb(19, 19, 19);
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #login-btn:hover {
+            background-color: #0056b3;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5); /* Black background with opacity */
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 300px;
+            text-align: left;
+        }
+
+        .modal-content input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .google-login {
+            background-color: #4285F4;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .google-login:hover {
+            background-color: #357ae8;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>OWASP Risk Calculator</h1>
+
+    <!-- Login button on the top-right -->
+    <button id="login-btn">Login</button>
+
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Login</h2>
+            <label for="email">Email:</label>
+            <input type="email" id="email" placeholder="Enter your email">
+            <label for="password">Password:</label>
+            <input type="password" id="password" placeholder="Enter your password">
+            <button onclick="login()">Login</button>
+            <div class="google-login" onclick="loginWithGoogle()">
+                Login with Google
+            </div>
+        </div>
+    </div>
+
+    <div id="gauge-container">
+        <div id="gauge"></div>
+        <div id="needle"></div>
+    </div>
+
+    <div id="risk-output">Risk: 0</div>
+    <div id="inputs">
+        <div>
+            <label for="likelihood">Likelihood (1-9): </label>
+            <input type="number" id="likelihood" min="1" max="9">
+        </div>
+        <div>
+            <label for="impact">Impact (1-9): </label>
+            <input type="number" id="impact" min="1" max="9">
+        </div>
+        <button onclick="calculateRisk()">Calculate Risk</button>
+    </div>
+
+    <div id="suggestions"></div>
+
+    <script>
+        // Get the modal
+        var modal = document.getElementById('loginModal');
+        
+        // Get the login button
+        var btn = document.getElementById('login-btn');
+        
+        // Get the <span> element that closes the modal
+        var span = document.getElementsByClassName('close')[0];
+        
+        // When the user clicks on the button, open the modal
+        btn.onclick = function() {
+            modal.style.display = 'block';
+        }
+        
+        // When the user clicks on <span> (x), close the modal
+        span.onclick = function() {
+            modal.style.display = 'none';
+        }
+        
+        // When the user clicks anywhere outside of the modal, close it
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        // Simple login logic
+        function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            if (email && password) {
+                alert(`Logged in as ${email}`);
+                modal.style.display = 'none';
+            } else {
+                alert('Please enter both email and password.');
+            }
+        }
+
+        // Dummy login with Google logic
+        function loginWithGoogle() {
+            alert('Logging in with Google...');
+            modal.style.display = 'none';
+        }
+
+        function calculateRisk() {
+            const likelihood = document.getElementById('likelihood').value;
+            const impact = document.getElementById('impact').value;
+
+            if (!likelihood || !impact) {
+                alert("Please enter both likelihood and impact values.");
+                return;
+            }
+
+            const riskValue = likelihood * impact;
+            document.getElementById('risk-output').innerText = `Risk: ${riskValue}`;
+
+            const maxRisk = 81;  // Max risk value is 9 * 9 = 81
+            const angle = (riskValue / maxRisk) * 180; // Adjusted to show 0° at minimum risk
+            const needle = document.getElementById('needle');
+            needle.style.transform = `rotate(${angle - 90}deg)`;  // Subtract 90 to center the rotation
+
+            let message = "";
+            if (riskValue < 30) {
+                message = "Low Risk: You are good to go!";
+            } else if (riskValue < 60) {
+                message = "Medium Risk: Consider implementing security best practices:<br>- Conduct regular security training for staff.<br>- Ensure software is up to date.<br>- Monitor systems for unusual activity.";
+            } else {
+                message = "High Risk: Immediate action required! Investigate further:<br>- Perform a thorough security assessment.<br>- Implement strong access controls.<br>- Ensure data encryption is in place.<br>- Review incident response plans.";
+            }
+
+            alert(message);
+            document.getElementById('suggestions').innerHTML = message;
+        }
+    </script>
+
+</body>
+</html>
